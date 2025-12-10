@@ -1,0 +1,433 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portal de Calculadoras de Custo-Benefício e Vida Útil</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
+  <script src="assets/main.js" type="module" defer></script>
+</head>
+<body>
+  <header>
+    <div class="hero">
+      <img src="assets/logo_TCE.png" alt="Logo TCE-PR" class="logo" />
+      <h1>Portal de Calculadoras de Custo-Benefício e Vida Útil</h1>
+      <h2>Análise técnica e econômica de bens para decisões de compra inteligentes</h2>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="tabs">
+      <button class="tab-button active" data-tab-target="inicio">Início</button>
+      <div class="tab-dropdown">
+        <button class="tab-button" data-tab-target="comparador" data-tab-prefix="comparador">Custo-Benefício</button>
+        <div class="dropdown-menu">
+          <button class="dropdown-item" data-tab-target="comparador">Ar-Condicionado</button>
+          <button class="dropdown-item" data-tab-target="comparador-pneus">Pneus</button>
+          <button class="dropdown-item" data-tab-target="comparador-computadores">Computadores</button>
+          <button class="dropdown-item" data-tab-target="comparador-mesas">Mesas</button>
+          <button class="dropdown-item" data-tab-target="comparador-cadeiras">Cadeiras</button>
+        </div>
+      </div>
+      <div class="tab-dropdown">
+        <button class="tab-button" data-tab-target="ciclo" data-tab-prefix="ciclo">Ciclo de Vida</button>
+        <div class="dropdown-menu">
+          <button class="dropdown-item" data-tab-target="ciclo">Ar-Condicionado</button>
+          <button class="dropdown-item" data-tab-target="ciclo-pneus">Pneus</button>
+          <button class="dropdown-item" data-tab-target="ciclo-computadores">Computadores</button>
+          <button class="dropdown-item" data-tab-target="ciclo-mesas">Mesas</button>
+          <button class="dropdown-item" data-tab-target="ciclo-cadeiras">Cadeiras</button>
+        </div>
+      </div>
+    </div>
+
+    <section id="tab-inicio" class="tab-content active">
+      <div class="card highlight">
+        <h3>Visão Geral</h3>
+        <p class="lead">Ferramenta para análise técnica e financeira de produtos em processos licitatórios.</p>
+        <div class="notice info-strip">
+          <div class="info-icon" aria-hidden="true">ℹ</div>
+          <div>
+            <strong>Objetivo do Sistema</strong>
+            <div>Este simulador utiliza modelos físico-matemáticos para estimar custos operacionais, vida útil e confiabilidade de equipamentos. Auxilia gestores públicos na tomada de decisões baseadas em dados técnicos concretos durante processos de compra.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="flex-between">
+          <div>
+            <h3>Módulos Disponíveis</h3>
+            <p class="lead">Selecione um módulo para iniciar a análise</p>
+          </div>
+        </div>
+        <div class="modules-grid" id="module-active"></div>
+      </div>
+
+      <div class="card">
+        <h3>Próximos Módulos</h3>
+        <p class="lead">Em desenvolvimento para próximas versões</p>
+        <div class="modules-grid" id="module-soon"></div>
+      </div>
+
+      <div class="card">
+        <h3>Como usar</h3>
+        <ol class="lead instructions">
+          <li>Selecione um módulo disponível.</li>
+          <li>Configure filtros e parâmetros de uso.</li>
+          <li>Visualize gráficos de consumo, custo e confiabilidade.</li>
+          <li>Compare resultados e exporte os dados se necessário.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="tab-comparador" class="tab-content">
+      <div class="card">
+        <h3>Objetivo e Escopo da Solução</h3>
+        <p class="lead">Filtre os equipamentos e selecione até três itens para comparar consumo, custo e investimento inicial.</p>
+        <div id="equipment-loader" class="notice">Carregando base de equipamentos...</div>
+        <div id="equipment-error" class="notice error hidden"></div>
+        <div id="equipment-ui" class="hidden">
+          <div class="form-row lc-row">
+            <div>
+              <label>Tipo</label>
+              <select id="filter-tipo"></select>
+            </div>
+            <div>
+              <label>Tecnologia</label>
+              <select id="filter-tecnologia">
+                <option value="all">Todas</option>
+                <option value="Inverter">Inverter</option>
+                <option value="Convencional">Convencional</option>
+              </select>
+            </div>
+            <div>
+              <label>Função</label>
+              <select id="filter-funcao"></select>
+            </div>
+            <div>
+              <label>Potência (BTU/h)</label>
+              <select id="filter-potencia"></select>
+            </div>
+            <div>
+              <label>Tensão Elétrica (V)</label>
+              <select id="filter-tensao"></select>
+            </div>
+            <div>
+              <label>Classe (INMETRO)</label>
+              <select id="filter-classe"></select>
+            </div>
+          </div>
+          <div class="muted" id="result-count">0 Equipamentos Encontrados</div>
+        </div>
+      </div>
+
+      <div class="card hidden" id="selection-card">
+        <div class="flex-between">
+          <div>
+            <h3>Características do Produto</h3>
+            <p class="lead">Selecione dois produtos para comparar. Cada equipamento tem seu próprio campo.</p>
+          </div>
+          <button class="btn add-equipment" id="add-equipment" type="button">+Equipamento Não Listado</button>
+        </div>
+        <div id="equipment-list" class="equipment-list grid cols-3"></div>
+      </div>
+      <div class="card hidden" id="usage-card">
+        <h3>Condições de Uso</h3>
+        <div class="form-row lc-row">
+          <div>
+            <label>Dias de Uso/Ano</label>
+            <div class="range-wrap">
+              <input type="range" id="dias-ano" min="1" max="365" step="1" value="253" />
+              <span id="dias-ano-val" class="range-val">253 dias</span>
+            </div>
+          </div>
+          <div>
+            <label>Horas de Uso/Dia</label>
+            <div class="range-wrap">
+              <input type="range" id="horas-uso" min="1" max="24" step="0.01" value="5.698" />
+              <span id="horas-uso-val" class="range-val">5.698 h/dia</span>
+            </div>
+          </div>
+          <div>
+            <label>Custo Energético (R$/kWh)</label>
+            <div class="range-wrap">
+              <input type="range" id="tarifa" min="0.4" max="4.0" step="0.01" value="1.80" />
+              <span id="tarifa-val" class="range-val">R$ 1,80</span>
+            </div>
+          </div>
+          <div>
+            <label>Taxa de Juros Real (%)</label>
+            <div class="range-wrap">
+              <input type="range" id="taxa-real" min="0" max="0.2" step="0.001" value="0.01" />
+              <span id="taxa-real-val" class="range-val">1,00%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card hidden" id="charts-card">
+        <h3>Resultados</h3>
+        <div class="grid cols-3" id="summary-grid"></div>
+        <div class="chart-grid">
+          <div class="chart-card"><canvas id="chart-consumo"></canvas></div>
+          <div class="chart-card"><canvas id="chart-custo"></canvas></div>
+          <div class="chart-card"><canvas id="chart-total"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card hidden" id="cashflow-card">
+        <div class="flex-between">
+          <div>
+            <h3>Fluxo de Caixa na Vida Útil</h3>
+            <p class="lead">Compare Custo de Obtenção (CO), Custo de Operação e Apoio (COA), Custo de Desfazimento (CD) e o Payback do Valor Presente (VP) entre os equipamentos selecionados.</p>
+          </div>
+        </div>
+
+        <div class="grid cols-2 cf-grid">
+          <div class="table-card">
+            <div class="table-card__title" id="cf-title-1">Fluxo de Caixa - Equipamento 1</div>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Ano</th><th>CO</th><th>COA-Manutenção</th><th>COA-Energia</th><th>CD</th><th>COA</th><th>VP</th>
+                </tr>
+              </thead>
+              <tbody id="cf-body-1"></tbody>
+            </table>
+          </div>
+          <div class="table-card">
+            <div class="table-card__title" id="cf-title-2">Fluxo de Caixa - Equipamento 2</div>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Ano</th><th>CO</th><th>COA-Manutenção</th><th>COA-Energia</th><th>CD</th><th>COA</th><th>VP</th>
+                </tr>
+              </thead>
+              <tbody id="cf-body-2"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="grid cols-2 cf-grid">
+          <div class="table-card">
+            <div class="table-card__title">Diferença entre os Equipamentos</div>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Ano</th><th>CO</th><th>COA-Manutenção</th><th>COA-Energia</th><th>CD</th><th>COA</th><th>VP</th><th>Payback</th>
+                </tr>
+              </thead>
+              <tbody id="cf-body-diff"></tbody>
+            </table>
+          </div>
+          <div class="chart-card">
+            <div class="table-card__title" style="padding-left:0;">Gráfico de Payback</div>
+            <canvas id="cf-payback"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="card hidden" id="export-card">
+        <h3>Exportar Resultados</h3>
+        <div class="export-row hidden" id="cb-export-row">
+          <div class="muted">Exportar resultados e gráficos (Custo-Benefício)</div>
+          <div class="export-actions">
+            <button class="btn btn-excel" id="btn-export-excel-cb" type="button">Baixar Excel</button>
+            <button class="btn btn-pdf" id="btn-export-pdf-cb" type="button">Baixar PDF</button>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <section id="tab-comparador-pneus" class="tab-content">
+      <div class="card">
+        <div class="badge muted">Em breve</div>
+        <h3>Comparador - Pneus</h3>
+        <p class="lead">Espaço reservado para comparar durabilidade, recapagem e custo por quilômetro rodado.</p>
+        <div class="notice">Placeholder das análises de pneus. Será ligado ao box de Próximos Módulos quando o conteúdo estiver pronto.</div>
+      </div>
+    </section>
+
+    <section id="tab-comparador-computadores" class="tab-content">
+      <div class="card">
+        <div class="badge muted">Em breve</div>
+        <h3>Comparador - Computadores</h3>
+        <p class="lead">Futuro painel para comparar TCO, performance e obsolescência de desktops e notebooks.</p>
+        <div class="notice">Área de escala futura. Use o box de Próximos Módulos para acompanhar o avanço.</div>
+      </div>
+    </section>
+
+    <section id="tab-comparador-mesas" class="tab-content">
+      <div class="card">
+        <div class="badge muted">Em breve</div>
+        <h3>Comparador - Mesas</h3>
+        <p class="lead">Planejado para avaliar materiais, ergonomia e custo-benefício de mesas de trabalho.</p>
+        <div class="notice">Placeholder de navegação. Será ativado quando o módulo de mesas estiver disponível.</div>
+      </div>
+    </section>
+
+    <section id="tab-comparador-cadeiras" class="tab-content">
+      <div class="card">
+        <div class="badge muted">Em breve</div>
+        <h3>Comparador - Cadeiras</h3>
+        <p class="lead">Espaço futuro para ergonomia, normas e resistência de cadeiras de escritório.</p>
+        <div class="notice">Placeholder simples para manter a visão de escala dos módulos.</div>
+      </div>
+    </section>
+
+    <section id="tab-ciclo" class="tab-content">
+      <div class="card">
+        <h3>Análise de Ciclo de Vida</h3>
+        <p class="lead">Modelos Weibull, AFT e Arrhenius para estimar confiabilidade e vida útil média.</p>
+      </div>
+
+      <div class="card">
+        <h3>Características Gerais</h3>
+        <p class="lead">Filtre a base INMETRO para escolher os equipamentos que entrarão na análise de ciclo de vida.</p>
+        <div id="lc-equipment-loader" class="notice">Carregando base de equipamentos...</div>
+        <div id="lc-equipment-error" class="notice error hidden"></div>
+        <div id="lc-equipment-ui" class="hidden">
+          <div class="form-row lc-row">
+            <div>
+              <label>Tipo</label>
+              <select id="lc-filter-tipo"></select>
+            </div>
+            <div>
+              <label>Tecnologia</label>
+              <select id="lc-filter-tecnologia">
+                <option value="all">Todas</option>
+                <option value="Inverter">Inverter</option>
+                <option value="Convencional">Convencional</option>
+              </select>
+            </div>
+            <div>
+              <label>Função</label>
+              <select id="lc-filter-funcao"></select>
+            </div>
+            <div>
+              <label>Potência (BTU/h)</label>
+              <select id="lc-filter-potencia"></select>
+            </div>
+            <div>
+              <label>Tensão (V)</label>
+              <select id="lc-filter-tensao"></select>
+            </div>
+            <div>
+              <label>Classe (INMETRO)</label>
+              <select id="lc-filter-classe"></select>
+            </div>
+          </div>
+          <div class="muted" id="lc-result-count">0 Equipamentos Encontrados</div>
+        </div>
+      </div>
+
+      <div class="card hidden" id="lc-selection-card">
+        <div class="flex-between">
+          <div>
+            <h3>Selecione os Equipamentos</h3>
+            <p class="lead">Escolha dois modelos para gerar as curvas de confiabilidade.</p>
+          </div>
+        </div>
+        <div id="lc-equipment-list" class="equipment-list grid cols-2"></div>
+      </div>
+
+      <div class="card">
+        <h3>Condições de Uso</h3>
+        <div class="form-row lc-row lc-row-4">
+          <div>
+            <div class="slider-control">
+              <div class="slider-header">
+                <label>Horas de Uso por Dia</label>
+                <span id="lc-horas-val" class="range-val">8.00 h/dia</span>
+              </div>
+              <input type="range" id="lc-horas" min="1" max="24" step="0.01" value="8" />
+            </div>
+          </div>
+          <div>
+            <div class="slider-control">
+              <div class="slider-header">
+                <label>Temperatura Ambiente (°C)</label>
+                <span id="lc-temperatura-val" class="range-val">25.0 °C</span>
+              </div>
+              <input type="range" id="lc-temperatura" min="15" max="45" step="0.1" value="25" />
+            </div>
+          </div>
+          <div>
+            <label>Condição de Manutenção</label>
+            <select id="lc-manutencao">
+              <option value="regular">Regular</option>
+              <option value="irregular">Irregular</option>
+              <option value="sem">Sem Manutenção</option>
+            </select>
+          </div>
+          <div>
+            <label>Tipo de Ambiente</label>
+            <select id="lc-ambiente">
+              <option value="ideal">Ideal</option>
+              <option value="quente">Quente</option>
+              <option value="severo">Severo</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card hidden" id="lc-resultados">
+        <h3>Resultados da Análise</h3>
+        <div class="grid cols-2" id="lc-stats"></div>
+        <div class="notice" id="lc-interpretacao"></div>
+        <div class="grid cols-2 charts">
+          <canvas id="lc-confiabilidade"></canvas>
+          <canvas id="lc-densidade"></canvas>
+        </div>
+      </div>
+    </section>
+    <section id="tab-ciclo-pneus" class="tab-content">
+      <div class="card">
+        <div class="badge muted">Em breve</div>
+        <h3>Ciclo de Vida - Pneus</h3>
+        <p class="lead">Modelagem de desgaste, recapagem e custo total de propriedade para frota.</p>
+        <div class="notice">Placeholder de futuro módulo. Esta aba será preenchida quando os dados e curvas de pneus estiverem disponíveis.</div>
+      </div>
+    </section>
+
+    <section id="tab-ciclo-computadores" class="tab-content">
+      <div class="card">
+        <div class="badge muted">Em breve</div>
+        <h3>Ciclo de Vida - Computadores</h3>
+        <p class="lead">Planejado para avaliar obsolescência, confiabilidade e custos operacionais de TI.</p>
+        <div class="notice">Área reservada para análises futuras. Mantida para sinalizar a evolução do projeto.</div>
+      </div>
+    </section>
+
+    <section id="tab-ciclo-mesas" class="tab-content">
+      <div class="card">
+        <div class="badge muted">Em breve</div>
+        <h3>Ciclo de Vida - Mesas</h3>
+        <p class="lead">Espaço para curvas de durabilidade e requisitos ergonômicos de mobiliário.</p>
+        <div class="notice">Placeholder simples para manter a navegação consistente entre bens.</div>
+      </div>
+    </section>
+
+    <section id="tab-ciclo-cadeiras" class="tab-content">
+      <div class="card">
+        <div class="badge muted">Em breve</div>
+        <h3>Ciclo de Vida - Cadeiras</h3>
+        <p class="lead">Futuras simulações de vida útil, resistências e compliance NR-17.</p>
+        <div class="notice">Conteúdo em construção. Será conectado ao módulo de Próximos Módulos quando liberado.</div>
+      </div>
+    </section>
+  </main>
+  <footer class="footer">
+    2025 (β 1.0) - Portal de Calculadoras - Desenvolvido na CGF
+  </footer>
+</body>
+</html>
