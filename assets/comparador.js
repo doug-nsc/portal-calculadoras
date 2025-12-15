@@ -110,6 +110,24 @@ const usageInputs = {
   taxaVal: document.getElementById("taxa-real-val"),
 };
 
+function setRangeFill(el) {
+  if (!el) return;
+  const min = parseFloat(el.min || "0");
+  const max = parseFloat(el.max || "100");
+  const val = parseFloat(el.value || min);
+  const pct = ((val - min) * 100) / (max - min || 1);
+  el.style.setProperty("--fill", `${Math.min(Math.max(pct, 0), 100)}%`);
+}
+
+function initRangeFill() {
+  const ranges = document.querySelectorAll('input[type="range"]');
+  ranges.forEach((el) => {
+    setRangeFill(el);
+    el.addEventListener("input", () => setRangeFill(el));
+    el.addEventListener("change", () => setRangeFill(el));
+  });
+}
+
 function getLifeYearsMin() {
   const anos = Math.min(
     ...state.equipments.map((e) => {
@@ -591,6 +609,10 @@ addEquipmentBtn?.addEventListener("click", () => {
   usageInputs.tarifaVal.textContent = formatCurrencyBr(state.usage.tarifaKwh);
   usageInputs.diasVal.textContent = `${state.usage.diasAno} dias`;
   usageInputs.taxaVal.textContent = formatPercentBr(state.usage.taxaReal, 2);
+  setRangeFill(usageInputs.horas);
+  setRangeFill(usageInputs.tarifa);
+  setRangeFill(usageInputs.dias);
+  setRangeFill(usageInputs.taxa);
 }
 
 function initLifecycleSelectors() {
@@ -1308,6 +1330,8 @@ function syncLifeCycleDefaults() {
   if (lcInputs.temperatura) lcInputs.temperatura.value = state.usage.temperaturaUso.toString();
   if (lcInputs.horasVal) lcInputs.horasVal.textContent = formatHoursPerDay(parseNumber(lcInputs.horas.value, 8));
   if (lcInputs.temperaturaVal) lcInputs.temperaturaVal.textContent = `${parseNumber(lcInputs.temperatura.value, 25).toFixed(1)} C`;
+  setRangeFill(lcInputs.horas);
+  setRangeFill(lcInputs.temperatura);
 }
 
 function desenharCiclo() {
@@ -1376,4 +1400,5 @@ export function initComparador() {
   if (btnExcelCB) btnExcelCB.addEventListener("click", handleExcelExport);
   if (btnPdfCB) btnPdfCB.addEventListener("click", handlePdfExport);
   // exportação do ciclo de vida removida/ocultada até configuração futura
+  initRangeFill();
 }

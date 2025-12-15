@@ -2,6 +2,37 @@
 
 import { tecnologiaNormalizada } from "./lifecycle.js";
 
+const LOGO_SRC = "assets/logo_horizontal_azul.jpg";
+let logoDataUrlPromise = null;
+
+async function loadLogoDataUrl() {
+  if (logoDataUrlPromise) return logoDataUrlPromise;
+  logoDataUrlPromise = new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth || img.width || 0;
+        canvas.height = img.naturalHeight || img.height || 0;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+        resolve({
+          dataUrl: canvas.toDataURL("image/jpeg"),
+          width: canvas.width || 1,
+          height: canvas.height || 1,
+        });
+      } catch (err) {
+        console.warn("Não foi possível preparar a logo para o PDF:", err);
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = new URL(LOGO_SRC, window.location.href).toString();
+  });
+  return logoDataUrlPromise;
+}
+
 const formatNumberBr = (value, decimals = 2) =>
   Number(value || 0).toLocaleString("pt-BR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 const formatCurrencyBr = (value) => `R$ ${formatNumberBr(value, 2)}`;
@@ -24,8 +55,38 @@ function chartToImage(chart) {
   return chart.toBase64Image("image/png", 1);
 }
 
-export function downloadPdfExport({ dataset, charts, paybackChart }) {
+function measureText(doc, text, fontSize = 10) {
+  const prev = doc.getFontSize();
+  doc.setFontSize(fontSize);
+  const width = doc.getTextWidth(String(text ?? ""));
+  doc.setFontSize(prev);
+  return width;
+}
+
+function calcColWidths(doc, columns, rows, { maxWidth, padding = 6, minWidths = [], fontSize = 10 } = {}) {
+  if (!Array.isArray(columns) || !columns.length) return [];
+  const colCount = columns.length;
+  const widths = new Array(colCount).fill(0);
+  columns.forEach((col, idx) => {
+    widths[idx] = Math.max(widths[idx], measureText(doc, col, fontSize));
+  });
+  (rows || []).forEach((row) => {
+    row.forEach((cell, idx) => {
+      widths[idx] = Math.max(widths[idx], measureText(doc, cell, fontSize));
+    });
+  });
+  const padded = widths.map((w, idx) => Math.max(minWidths[idx] || 0, w + padding * 2));
+  const total = padded.reduce((a, b) => a + b, 0);
+  if (maxWidth && total > maxWidth) {
+    const scale = maxWidth / total;
+    return padded.map((w, idx) => Math.max(minWidths[idx] || 0, w * scale));
+  }
+  return padded;
+}
+
+export async function downloadPdfExport({ dataset, charts, paybackChart }) {
   if (!window.jspdf || !dataset?.computed?.length) return;
+  const logoInfo = await loadLogoDataUrl();
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "a4", orientation: "landscape" });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -34,10 +95,21 @@ export function downloadPdfExport({ dataset, charts, paybackChart }) {
   const contentWidth = pageWidth - margin * 2;
   let y = margin;
 
+  const drawLogoHeader = () => {
+    if (!logoInfo?.dataUrl) return;
+    const ratio = logoInfo.height / (logoInfo.width || 1);
+    const logoWidth = 160;
+    const logoHeight = logoWidth * ratio;
+    const x = pageWidth - margin - logoWidth;
+    const yPos = margin - 10;
+    doc.addImage(logoInfo.dataUrl, "JPEG", x, yPos, logoWidth, logoHeight);
+  };
+
   const addPageIfNeeded = (heightNeeded) => {
     if (y + heightNeeded > pageHeight - margin) {
       doc.addPage();
       y = margin;
+      drawLogoHeader();
     }
   };
 
@@ -80,7 +152,7 @@ export function downloadPdfExport({ dataset, charts, paybackChart }) {
       xLine += w;
       doc.line(xLine, topLineY, xLine, y);
     });
-    return y; // y j? est? no fim da tabela
+    return y; // y já está no fim da tabela
   };
 
   const addChartImage = (chart, title = "") => {
@@ -106,7 +178,28 @@ export function downloadPdfExport({ dataset, charts, paybackChart }) {
     if (!rows?.length) return 0;
     const headers = ["Ano", "CAPEX", "Manut.", "Energia", "Residual", "Opex", "VP"];
     if (includePayback) headers.push("Payback");
-    const colWidths = includePayback ? [45, 75, 75, 75, 75, 75, 75, 75] : [52, 82, 82, 82, 82, 82, 82];
+    const allRows = rows.slice();
+    if (totals) allRows.push({ ...totals, ano: "Total" });
+    const formattedRows = allRows.map((r) => {
+      const vals = [
+        r.ano.toString(),
+        formatNumberBr(r.capex, 2),
+        formatNumberBr(r.manutencao, 2),
+        formatNumberBr(r.energia, 2),
+        formatNumberBr(r.descarte, 2),
+        formatNumberBr(r.opex, 2),
+        formatNumberBr(r.vpOpex ?? r.vpTotal, 2),
+      ];
+      if (includePayback) vals.push(r.payback !== undefined ? formatNumberBr(r.payback, 2) : "");
+      return vals;
+    });
+
+    const colWidths = calcColWidths(doc, headers, formattedRows, {
+      maxWidth: contentWidth,
+      minWidths: includePayback ? [45, 70, 70, 70, 70, 70, 70, 70] : [50, 78, 78, 78, 78, 78, 78],
+      padding: 6,
+      fontSize: 10,
+    });
     const totalWidth = colWidths.reduce((a, b) => a + b, 0);
     const colX = [];
     let acc = margin;
@@ -115,8 +208,6 @@ export function downloadPdfExport({ dataset, charts, paybackChart }) {
       acc += w;
     });
     const rowHeight = 18;
-    const allRows = rows.slice();
-    if (totals) allRows.push({ ...totals, ano: "Total" });
     const tableHeight = rowHeight * (allRows.length + 1) + 18;
     addPageIfNeeded(tableHeight + 8);
 
@@ -135,19 +226,7 @@ export function downloadPdfExport({ dataset, charts, paybackChart }) {
       y += rowHeight;
     };
     drawRow(headers);
-    allRows.forEach((r) => {
-      const vals = [
-        r.ano.toString(),
-        formatNumberBr(r.capex, 2),
-        formatNumberBr(r.manutencao, 2),
-        formatNumberBr(r.energia, 2),
-        formatNumberBr(r.descarte, 2),
-        formatNumberBr(r.opex, 2),
-        formatNumberBr(r.vpOpex ?? r.vpTotal, 2),
-      ];
-      if (includePayback) vals.push(r.payback !== undefined ? formatNumberBr(r.payback, 2) : "");
-      drawRow(vals);
-    });
+    formattedRows.forEach((vals) => drawRow(vals));
     let xLine = margin;
     doc.line(margin, topLineY, margin, y);
     colWidths.forEach((w) => {
@@ -158,9 +237,11 @@ export function downloadPdfExport({ dataset, charts, paybackChart }) {
     return y;
   };
 
+  drawLogoHeader();
+
   // Cabe?alho
   doc.setFontSize(16);
-  doc.text("Relat?rio da Rela??o Custo-Benef?cio - M?dulo Ar-Condicionado", pageWidth / 2, y, { align: "center" });
+  doc.text("Relatório da Relação Custo-Benefício - Módulo Ar-Condicionado", pageWidth / 2, y, { align: "center" });
   y += 24;
 
   // P?gina 1: Configura??es Gerais (topo) e Comparador (abaixo)
@@ -169,18 +250,23 @@ export function downloadPdfExport({ dataset, charts, paybackChart }) {
     const eq2 = dataset.computed[1];
     const lifeYears = dataset.lifeYears || 0;
 
-    const cfgCols = ["Condi??es de Uso", "Valor"];
+    const cfgCols = ["Condições de Uso", "Valor"];
     const cfgRows = [
-      ["Vida ?til", `${lifeYears} Anos`],
+      ["Vida Útil", `${lifeYears} Anos`],
       ["Horas por Dia", formatHoursPerDay(dataset.usage.horasUso)],
       ["Dias ao Ano", `${formatNumberBr(dataset.usage.diasAno, 0)} dias`],
-      ["Tarifa Energ?tica", formatCurrencyBr(dataset.usage.tarifaKwh)],
+      ["Tarifa Energética", formatCurrencyBr(dataset.usage.tarifaKwh)],
       ["Taxa de Juros Real", formatPercentBr(dataset.usage.taxaReal, 2)],
     ];
-    const cfgWidths = [220, 160];
+    const cfgWidths = calcColWidths(doc, cfgCols, cfgRows, {
+      maxWidth: contentWidth * 0.6,
+      minWidths: [140, 120],
+      padding: 6,
+      fontSize: 10,
+    });
     const cfgWidthTotal = cfgWidths.reduce((a, b) => a + b, 0);
     drawGridTable({
-      title: "Configura??es Gerais",
+      title: "Configurações Gerais",
       columns: cfgCols,
       rows: cfgRows,
       colWidths: cfgWidths,
@@ -194,7 +280,7 @@ export function downloadPdfExport({ dataset, charts, paybackChart }) {
       `${eq2.eq.marca} (${eq2.eq.tecnologia || tecnologiaNormalizada(eq2.eq)})`,
     ];
     const tableRows = [
-      ["Capacidade T?rmica", `${formatNumberBr(eq1.eq.potencia_btu, 0)} BTU/h`, `${formatNumberBr(eq2.eq.potencia_btu, 0)} BTU/h`],
+      ["Capacidade Térmica", `${formatNumberBr(eq1.eq.potencia_btu, 0)} BTU/h`, `${formatNumberBr(eq2.eq.potencia_btu, 0)} BTU/h`],
       ["Consumo Anual", `${formatNumberBr(eq1.consumoAnual, 0)} kWh/Ano`, `${formatNumberBr(eq2.consumoAnual, 0)} kWh/Ano`],
       ["IDRS", formatNumberBr(eq1.eq.idrs, 2), formatNumberBr(eq2.eq.idrs, 2)],
       ["Classe", `${eq1.eq.classe || ""}`, `${eq2.eq.classe || ""}`],
@@ -204,10 +290,15 @@ export function downloadPdfExport({ dataset, charts, paybackChart }) {
       ["COA Anual", formatCurrencyBr(eq1.opexAnual), formatCurrencyBr(eq2.opexAnual)],
       [`COA em ${lifeYears} Anos`, formatCurrencyBr(eq1.opexTotal), formatCurrencyBr(eq2.opexTotal)],
     ];
-    const colWidths = [180, (contentWidth - 180) / 2, (contentWidth - 180) / 2];
+    const colWidths = calcColWidths(doc, tableCols, tableRows, {
+      maxWidth: contentWidth,
+      minWidths: [160, 120, 120],
+      padding: 6,
+      fontSize: 10,
+    });
     const tblWidthTotal = colWidths.reduce((a, b) => a + b, 0);
     drawGridTable({
-      title: "Comparador - Custo-Benef?cio",
+      title: "Comparador - Custo-Benefício",
       columns: tableCols,
       rows: tableRows,
       colWidths,
@@ -215,32 +306,35 @@ export function downloadPdfExport({ dataset, charts, paybackChart }) {
     });
   }
 
-  // P?gina 2: tr?s gr?ficos empilhados
+  // Página 2: três gráficos empilhados
   doc.addPage();
   y = margin;
+  drawLogoHeader();
   addChartImage(charts?.consumo, "");
   addChartImage(charts?.custo, "");
   addChartImage(charts?.total, "");
 
-  // P?gina 3: fluxo de caixa (duas tabelas empilhadas)
+  // Página 3: fluxo de caixa (duas tabelas empilhadas)
   if (dataset.cashflow) {
     doc.addPage();
     y = margin;
+    drawLogoHeader();
     addTableFull("Fluxo de Caixa - Equipamento 1", dataset.cashflow.rows1, dataset.cashflow.totals1);
     addTableFull("Fluxo de Caixa - Equipamento 2", dataset.cashflow.rows2, dataset.cashflow.totals2);
   }
 
-  // P?gina 4: tabela de diferen?a e gr?fico de payback lado a lado
+  // Página 4: tabela de diferença e gráfico de payback lado a lado
   if (dataset.cashflow) {
     doc.addPage();
     y = margin;
+    drawLogoHeader();
     const half = (contentWidth - 12) / 2;
     const tableCols = ["Ano", "CAPEX", "Manut.", "Energia", "Residual", "Opex", "VP", "Payback"];
     const baseWidths = [40, 60, 60, 60, 60, 60, 60, 60];
     const scale = half / baseWidths.reduce((a, b) => a + b, 0);
     const colWidths = baseWidths.map((w) => w * scale);
     const tableHeightStart = y;
-    // desenha tabela ? esquerda
+    // desenha tabela à esquerda
     const savedY = y;
     const tableHeight = (() => {
       if (!dataset.cashflow.rowsDiff?.length) return 0;
@@ -251,7 +345,7 @@ export function downloadPdfExport({ dataset, charts, paybackChart }) {
       const totalWidth = colWidths.reduce((a, b) => a + b, 0);
       addPageIfNeeded(rowHeight * (rows.length + 1) + 20);
       doc.setFontSize(12);
-      doc.text("Fluxo de Caixa - Diferen?a (com payback)", margin, y);
+      doc.text("Fluxo de Caixa - Diferença (com payback)", margin, y);
       y += 14;
       doc.setFontSize(10);
       let top = y;
@@ -285,7 +379,7 @@ export function downloadPdfExport({ dataset, charts, paybackChart }) {
     })();
     y = savedY; // reset to top for aligned layout
 
-    // gr?fico ? direita
+    // gráfico à direita
     if (paybackChart) {
       const img = chartToImage(paybackChart);
       if (img) {
@@ -300,5 +394,5 @@ export function downloadPdfExport({ dataset, charts, paybackChart }) {
     y = tableHeightStart + Math.max(tableHeight, 0) + 8;
   }
 
-  doc.save("comparador-custo-beneficio.pdf");
+  doc.save("Relatório Custo-Benefício - Ar-Condicionado.pdf");
 }
