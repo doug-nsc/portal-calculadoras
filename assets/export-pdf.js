@@ -1,4 +1,4 @@
-// Arquivo responsável por exportar os dados do comparador e análise de ciclo de vida para PDF.
+// Exporta relatórios em PDF com layout inspirado nos mockups fornecidos.
 
 import { tecnologiaNormalizada } from "./lifecycle.js";
 
@@ -55,6 +55,10 @@ function chartToImage(chart) {
   return chart.toBase64Image("image/png", 1);
 }
 
+function todayBr() {
+  return new Date().toLocaleDateString("pt-BR");
+}
+
 function measureText(doc, text, fontSize = 10) {
   const prev = doc.getFontSize();
   doc.setFontSize(fontSize);
@@ -84,314 +88,331 @@ function calcColWidths(doc, columns, rows, { maxWidth, padding = 6, minWidths = 
   return padded;
 }
 
+function drawLogo(doc, logoInfo, margin, pageWidth) {
+  if (!logoInfo?.dataUrl) return;
+  const logoWidth = 120;
+  const ratio = logoInfo.height / (logoInfo.width || 1);
+  const logoHeight = logoWidth * ratio;
+  const x = pageWidth - margin - logoWidth;
+  const y = margin - 4;
+  doc.addImage(logoInfo.dataUrl, "JPEG", x, y, logoWidth, logoHeight);
+}
+
+function drawFooter(doc, pageNumber, totalPages, margin, colorPrimary, dateText) {
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const y = pageHeight - margin + 10;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.setTextColor(...colorPrimary);
+  doc.text(`Data de exportação: ${dateText}`, margin, y);
+  doc.text(String(pageNumber), doc.internal.pageSize.getWidth() - margin, y, { align: "right" });
+}
+
+function drawTitleBlock(doc, pageWidth, y, colorPrimary, sectionTitle) {
+  const center = pageWidth / 2;
+  doc.setTextColor(...colorPrimary);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.text("Relatório do Portal de Calculadoras", center, y, { align: "center" });
+  y += 26;
+  doc.text("Módulo Ar-Condicionado", center, y, { align: "center" });
+  y += 36;
+  doc.setFontSize(18);
+  doc.text(sectionTitle, center, y, { align: "center" });
+  y += 28;
+  return y;
+}
+
+function drawSubTitle(doc, pageWidth, y, text, colorPrimary) {
+  doc.setTextColor(...colorPrimary);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.text(text, pageWidth / 2, y, { align: "center" });
+  return y + 20;
+}
+
+function drawTable(doc, { x, y, columns, rows, colWidths, rowHeight = 24, colors }) {
+  if (!columns?.length || !rows?.length) return y;
+  const { headerBg, headerText, stripe1, stripe2, border } = colors;
+  doc.setLineWidth(0.5);
+  doc.setDrawColor(...border);
+
+  // Header
+  let cursorX = x;
+  doc.setFillColor(...headerBg);
+  doc.rect(x, y, colWidths.reduce((a, b) => a + b, 0), rowHeight, "F");
+  doc.setTextColor(...headerText);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  columns.forEach((col, idx) => {
+    const cellX = cursorX + colWidths[idx] / 2;
+    doc.text(String(col), cellX, y + rowHeight / 2 + 3, { align: "center" });
+    cursorX += colWidths[idx];
+  });
+
+  // Rows
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  let currentY = y + rowHeight;
+  rows.forEach((row, ridx) => {
+    cursorX = x;
+    const fill = ridx % 2 === 0 ? stripe1 : stripe2;
+    row.forEach((cell, cidx) => {
+      const w = colWidths[cidx];
+      doc.setFillColor(...fill);
+      doc.rect(cursorX, currentY, w, rowHeight, "F");
+      doc.setTextColor(20, 20, 20);
+      doc.text(String(cell ?? ""), cursorX + w / 2, currentY + rowHeight / 2 + 3, { align: "center" });
+      cursorX += w;
+    });
+    currentY += rowHeight;
+  });
+
+  return currentY + 10;
+}
+
+function drawChart(doc, img, opts) {
+  if (!img) return opts.y;
+  const { x, y, width, height } = opts;
+  doc.addImage(img, "PNG", x, y, width, height);
+  return y + height + 16;
+}
+
 export async function downloadPdfExport({ dataset, charts, paybackChart }) {
   if (!window.jspdf || !dataset?.computed?.length) return;
   const logoInfo = await loadLogoDataUrl();
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: "pt", format: "a4", orientation: "landscape" });
+  const doc = new jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
+
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 32;
+  const margin = 42;
   const contentWidth = pageWidth - margin * 2;
-  let y = margin;
-
-  const drawLogoHeader = () => {
-    if (!logoInfo?.dataUrl) return;
-    const ratio = logoInfo.height / (logoInfo.width || 1);
-    const logoWidth = 160;
-    const logoHeight = logoWidth * ratio;
-    const x = pageWidth - margin - logoWidth;
-    const yPos = margin - 10;
-    doc.addImage(logoInfo.dataUrl, "JPEG", x, yPos, logoWidth, logoHeight);
+  const colors = {
+    primary: [0, 103, 168],
+    headerBg: [0, 108, 143],
+    headerText: [255, 255, 255],
+    stripe1: [241, 244, 248],
+    stripe2: [229, 235, 240],
+    border: [200, 205, 210],
   };
 
-  const addPageIfNeeded = (heightNeeded) => {
-    if (y + heightNeeded > pageHeight - margin) {
-      doc.addPage();
-      y = margin;
-      drawLogoHeader();
-    }
-  };
+  const dateText = todayBr();
+  let y = margin + 6;
 
-  const drawGridTable = ({ title, columns, rows, colWidths, startX }) => {
-    if (!rows?.length || !columns?.length) return 0;
-    const rowHeight = 18;
-    const totalWidth = colWidths.reduce((a, b) => a + b, 0);
-    const colX = [];
-    let acc = startX;
-    colWidths.forEach((w) => {
-      colX.push(acc);
-      acc += w;
-    });
-
-    const tableHeight = rowHeight * (rows.length + 1) + 18;
-    addPageIfNeeded(tableHeight + 8);
-
-    doc.setFontSize(12);
-    doc.text(title, startX, y);
-    y += 14;
-    doc.setFontSize(10);
-
-    let topLineY = y;
-    doc.line(startX, topLineY, startX + totalWidth, topLineY);
-
-    const drawRow = (vals) => {
-      vals.forEach((v, idx) => {
-        doc.text(v, colX[idx] + 2, y + rowHeight - 6);
-      });
-      doc.line(startX, y + rowHeight, startX + totalWidth, y + rowHeight);
-      y += rowHeight;
-    };
-
-    drawRow(columns);
-    rows.forEach((r) => drawRow(r));
-
-    let xLine = startX;
-    doc.line(startX, topLineY, startX, y);
-    colWidths.forEach((w) => {
-      xLine += w;
-      doc.line(xLine, topLineY, xLine, y);
-    });
-    return y; // y já está no fim da tabela
-  };
-
-  const addChartImage = (chart, title = "") => {
-    if (!chart) return;
-    const img = chartToImage(chart);
-    if (!img) return;
-    const cw = chart.canvas?.width || 800;
-    const ch = chart.canvas?.height || 500;
-    const ratio = ch / cw;
-    const targetWidth = contentWidth;
-    const targetHeight = targetWidth * ratio;
-    addPageIfNeeded(targetHeight + (title ? 10 : 0) + 8);
-    if (title) {
-      doc.setFontSize(11);
-      doc.text(title, margin, y);
-      y += 10;
-    }
-    doc.addImage(img, "PNG", margin, y, targetWidth, targetHeight);
-    y += targetHeight + 8;
-  };
-
-  const addTableFull = (title, rows, totals, includePayback = false) => {
-    if (!rows?.length) return 0;
-    const headers = ["Ano", "CAPEX", "Manut.", "Energia", "Residual", "Opex", "VP"];
-    if (includePayback) headers.push("Payback");
-    const allRows = rows.slice();
-    if (totals) allRows.push({ ...totals, ano: "Total" });
-    const formattedRows = allRows.map((r) => {
-      const vals = [
-        r.ano.toString(),
-        formatNumberBr(r.capex, 2),
-        formatNumberBr(r.manutencao, 2),
-        formatNumberBr(r.energia, 2),
-        formatNumberBr(r.descarte, 2),
-        formatNumberBr(r.opex, 2),
-        formatNumberBr(r.vpOpex ?? r.vpTotal, 2),
-      ];
-      if (includePayback) vals.push(r.payback !== undefined ? formatNumberBr(r.payback, 2) : "");
-      return vals;
-    });
-
-    const colWidths = calcColWidths(doc, headers, formattedRows, {
-      maxWidth: contentWidth,
-      minWidths: includePayback ? [45, 70, 70, 70, 70, 70, 70, 70] : [50, 78, 78, 78, 78, 78, 78],
-      padding: 6,
-      fontSize: 10,
-    });
-    const totalWidth = colWidths.reduce((a, b) => a + b, 0);
-    const colX = [];
-    let acc = margin;
-    colWidths.forEach((w) => {
-      colX.push(acc);
-      acc += w;
-    });
-    const rowHeight = 18;
-    const tableHeight = rowHeight * (allRows.length + 1) + 18;
-    addPageIfNeeded(tableHeight + 8);
-
-    doc.setFontSize(12);
-    doc.text(title, margin, y);
-    y += 14;
-    doc.setFontSize(10);
-
-    let topLineY = y;
-    doc.line(margin, topLineY, margin + totalWidth, topLineY);
-    const drawRow = (vals) => {
-      vals.forEach((v, idx) => {
-        doc.text(v, colX[idx] + 2, y + rowHeight - 6);
-      });
-      doc.line(margin, y + rowHeight, margin + totalWidth, y + rowHeight);
-      y += rowHeight;
-    };
-    drawRow(headers);
-    formattedRows.forEach((vals) => drawRow(vals));
-    let xLine = margin;
-    doc.line(margin, topLineY, margin, y);
-    colWidths.forEach((w) => {
-      xLine += w;
-      doc.line(xLine, topLineY, xLine, y);
-    });
-    y += 8;
+  const drawHeader = (sectionTitle, addPage = false) => {
+    if (addPage) doc.addPage();
+    y = margin + 6;
+    drawLogo(doc, logoInfo, margin, pageWidth);
+    y = drawTitleBlock(doc, pageWidth, y, colors.primary, sectionTitle);
     return y;
   };
 
-  drawLogoHeader();
+  // Página 1: Características + Comparação
+  drawHeader("Características Gerais");
 
-  // Cabe?alho
-  doc.setFontSize(16);
-  doc.text("Relatório da Relação Custo-Benefício - Módulo Ar-Condicionado", pageWidth / 2, y, { align: "center" });
-  y += 24;
+  const lifeYears = dataset.lifeYears || 0;
+  const usageRows = [
+    ["Vida Útil Característica", `${lifeYears} Anos`],
+    ["Horas de Uso ao Dia", formatHoursPerDay(dataset.usage.horasUso)],
+    ["Dias de Uso ao Ano", `${formatNumberBr(dataset.usage.diasAno, 0)} dias`],
+    ["Tarifa Energética", formatCurrencyBr(dataset.usage.tarifaKwh)],
+    ["Taxa de Juros Real", formatPercentBr(dataset.usage.taxaReal, 2)],
+  ];
+  const usageCols = ["Condições de Uso", "Valor"];
+  const usageColWidths = calcColWidths(doc, usageCols, usageRows, {
+    maxWidth: contentWidth * 0.65,
+    minWidths: [150, 120],
+    padding: 8,
+    fontSize: 11,
+  });
+  const usageTableWidth = usageColWidths.reduce((a, b) => a + b, 0);
+  y = drawTable(doc, {
+    x: margin + (contentWidth - usageTableWidth) / 2,
+    y,
+    columns: usageCols,
+    rows: usageRows,
+    colWidths: usageColWidths,
+    rowHeight: 26,
+    colors,
+  });
 
-  // P?gina 1: Configura??es Gerais (topo) e Comparador (abaixo)
-  if (dataset.computed.length >= 2) {
-    const eq1 = dataset.computed[0];
-    const eq2 = dataset.computed[1];
-    const lifeYears = dataset.lifeYears || 0;
+  y += 8;
+  y = drawSubTitle(doc, pageWidth, y, "Relação Consumo-Custo dos Equipamentos", colors.primary);
 
-    const cfgCols = ["Condições de Uso", "Valor"];
-    const cfgRows = [
-      ["Vida Útil", `${lifeYears} Anos`],
-      ["Horas por Dia", formatHoursPerDay(dataset.usage.horasUso)],
-      ["Dias ao Ano", `${formatNumberBr(dataset.usage.diasAno, 0)} dias`],
-      ["Tarifa Energética", formatCurrencyBr(dataset.usage.tarifaKwh)],
-      ["Taxa de Juros Real", formatPercentBr(dataset.usage.taxaReal, 2)],
-    ];
-    const cfgWidths = calcColWidths(doc, cfgCols, cfgRows, {
-      maxWidth: contentWidth * 0.6,
-      minWidths: [140, 120],
-      padding: 6,
-      fontSize: 10,
-    });
-    const cfgWidthTotal = cfgWidths.reduce((a, b) => a + b, 0);
-    drawGridTable({
-      title: "Configurações Gerais",
-      columns: cfgCols,
-      rows: cfgRows,
-      colWidths: cfgWidths,
-      startX: margin + (contentWidth - cfgWidthTotal) / 2,
-    });
-    y += 10;
+  const eq1 = dataset.computed[0];
+  const eq2 = dataset.computed[1];
+  const tableCols = [
+    "Grandeza",
+    `${eq1.eq.marca} (${eq1.eq.tecnologia || tecnologiaNormalizada(eq1.eq)})`,
+    `${eq2.eq.marca} (${eq2.eq.tecnologia || tecnologiaNormalizada(eq2.eq)})`,
+  ];
+  const tableRows = [
+    ["Capacidade Térmica", `${formatNumberBr(eq1.eq.potencia_btu, 0)} BTU/h`, `${formatNumberBr(eq2.eq.potencia_btu, 0)} BTU/h`],
+    ["Consumo Anual", `${formatNumberBr(eq1.consumoAnual, 0)} kWh/Ano`, `${formatNumberBr(eq2.consumoAnual, 0)} kWh/Ano`],
+    ["IDRS", formatNumberBr(eq1.eq.idrs, 2), formatNumberBr(eq2.eq.idrs, 2)],
+    ["Classe", `${eq1.eq.classe || ""}`, `${eq2.eq.classe || ""}`],
+    [`Consumo em ${lifeYears} Anos`, `${formatNumberBr(eq1.consumoTotal, 2)} kWh`, `${formatNumberBr(eq2.consumoTotal, 2)} kWh`],
+    ["COA-Energia Anual", formatCurrencyBr(eq1.custoEnergiaAnual), formatCurrencyBr(eq2.custoEnergiaAnual)],
+    [`COA-Energia em ${lifeYears} Anos`, formatCurrencyBr(eq1.custoEnergiaTotal), formatCurrencyBr(eq2.custoEnergiaTotal)],
+    ["COA Anual", formatCurrencyBr(eq1.opexAnual), formatCurrencyBr(eq2.opexAnual)],
+    [`COA em ${lifeYears} Anos`, formatCurrencyBr(eq1.opexTotal), formatCurrencyBr(eq2.opexTotal)],
+  ];
+  const colWidths = calcColWidths(doc, tableCols, tableRows, {
+    maxWidth: contentWidth,
+    minWidths: [150, 120, 120],
+    padding: 8,
+    fontSize: 11,
+  });
+  const tblWidthTotal = colWidths.reduce((a, b) => a + b, 0);
+  y = drawTable(doc, {
+    x: margin + (contentWidth - tblWidthTotal) / 2,
+    y,
+    columns: tableCols,
+    rows: tableRows,
+    colWidths,
+    rowHeight: 26,
+    colors,
+  });
 
-    const tableCols = [
-      "Grandeza",
-      `${eq1.eq.marca} (${eq1.eq.tecnologia || tecnologiaNormalizada(eq1.eq)})`,
-      `${eq2.eq.marca} (${eq2.eq.tecnologia || tecnologiaNormalizada(eq2.eq)})`,
-    ];
-    const tableRows = [
-      ["Capacidade Térmica", `${formatNumberBr(eq1.eq.potencia_btu, 0)} BTU/h`, `${formatNumberBr(eq2.eq.potencia_btu, 0)} BTU/h`],
-      ["Consumo Anual", `${formatNumberBr(eq1.consumoAnual, 0)} kWh/Ano`, `${formatNumberBr(eq2.consumoAnual, 0)} kWh/Ano`],
-      ["IDRS", formatNumberBr(eq1.eq.idrs, 2), formatNumberBr(eq2.eq.idrs, 2)],
-      ["Classe", `${eq1.eq.classe || ""}`, `${eq2.eq.classe || ""}`],
-      [`Consumo em ${lifeYears} Anos`, `${formatNumberBr(eq1.consumoTotal, 2)} kWh`, `${formatNumberBr(eq2.consumoTotal, 2)} kWh`],
-      ["COA-Energia Anual", formatCurrencyBr(eq1.custoEnergiaAnual), formatCurrencyBr(eq2.custoEnergiaAnual)],
-      [`COA-Energia em ${lifeYears} Anos`, formatCurrencyBr(eq1.custoEnergiaTotal), formatCurrencyBr(eq2.custoEnergiaTotal)],
-      ["COA Anual", formatCurrencyBr(eq1.opexAnual), formatCurrencyBr(eq2.opexAnual)],
-      [`COA em ${lifeYears} Anos`, formatCurrencyBr(eq1.opexTotal), formatCurrencyBr(eq2.opexTotal)],
-    ];
-    const colWidths = calcColWidths(doc, tableCols, tableRows, {
-      maxWidth: contentWidth,
-      minWidths: [160, 120, 120],
-      padding: 6,
-      fontSize: 10,
-    });
-    const tblWidthTotal = colWidths.reduce((a, b) => a + b, 0);
-    drawGridTable({
-      title: "Comparador - Custo-Benefício",
-      columns: tableCols,
-      rows: tableRows,
-      colWidths,
-      startX: margin + (contentWidth - tblWidthTotal) / 2,
-    });
-  }
+  // Página 2: Gráficos empilhados
+  drawHeader("Resultados de Consumo e Custo no Tempo", true);
+  const chartWidth = contentWidth * 0.9;
+  const chartHeight = 180;
+  const chartMarginX = margin + (contentWidth - chartWidth) / 2;
 
-  // Página 2: três gráficos empilhados
-  doc.addPage();
-  y = margin;
-  drawLogoHeader();
-  addChartImage(charts?.consumo, "");
-  addChartImage(charts?.custo, "");
-  addChartImage(charts?.total, "");
+  y = drawChart(doc, chartToImage(charts?.consumo), {
+    x: chartMarginX,
+    y,
+    width: chartWidth,
+    height: chartHeight,
+  });
+  y = drawChart(doc, chartToImage(charts?.custo), {
+    x: chartMarginX,
+    y,
+    width: chartWidth,
+    height: chartHeight,
+  });
+  y = drawChart(doc, chartToImage(charts?.total), {
+    x: chartMarginX,
+    y,
+    width: chartWidth,
+    height: chartHeight,
+  });
 
-  // Página 3: fluxo de caixa (duas tabelas empilhadas)
+  // Página 3: Fluxo de caixa de cada equipamento
   if (dataset.cashflow) {
-    doc.addPage();
-    y = margin;
-    drawLogoHeader();
-    addTableFull("Fluxo de Caixa - Equipamento 1", dataset.cashflow.rows1, dataset.cashflow.totals1);
-    addTableFull("Fluxo de Caixa - Equipamento 2", dataset.cashflow.rows2, dataset.cashflow.totals2);
-  }
+    drawHeader("Fluxo de Caixa dos Equipamentos na Vida Útil", true);
 
-  // Página 4: tabela de diferença e gráfico de payback lado a lado
-  if (dataset.cashflow) {
-    doc.addPage();
-    y = margin;
-    drawLogoHeader();
-    const half = (contentWidth - 12) / 2;
-    const tableCols = ["Ano", "CAPEX", "Manut.", "Energia", "Residual", "Opex", "VP", "Payback"];
-    const baseWidths = [40, 60, 60, 60, 60, 60, 60, 60];
-    const scale = half / baseWidths.reduce((a, b) => a + b, 0);
-    const colWidths = baseWidths.map((w) => w * scale);
-    const tableHeightStart = y;
-    // desenha tabela à esquerda
-    const savedY = y;
-    const tableHeight = (() => {
-      if (!dataset.cashflow.rowsDiff?.length) return 0;
-      const headers = tableCols;
-      const rows = dataset.cashflow.rowsDiff.slice();
-      if (dataset.cashflow.totalsDiff) rows.push({ ...dataset.cashflow.totalsDiff, ano: "Total" });
-      const rowHeight = 18;
-      const totalWidth = colWidths.reduce((a, b) => a + b, 0);
-      addPageIfNeeded(rowHeight * (rows.length + 1) + 20);
-      doc.setFontSize(12);
-      doc.text("Fluxo de Caixa - Diferença (com payback)", margin, y);
-      y += 14;
-      doc.setFontSize(10);
-      let top = y;
-      doc.line(margin, top, margin + totalWidth, top);
-      const drawRow = (vals) => {
-        vals.forEach((v, idx) => doc.text(v, margin + colWidths.slice(0, idx).reduce((a, b) => a + b, 0) + 2, y + rowHeight - 6));
-        doc.line(margin, y + rowHeight, margin + totalWidth, y + rowHeight);
-        y += rowHeight;
-      };
-      drawRow(headers);
-      rows.forEach((r) => {
-        const vals = [
-          r.ano.toString(),
-          formatNumberBr(r.capex, 2),
-          formatNumberBr(r.manutencao, 2),
-          formatNumberBr(r.energia, 2),
-          formatNumberBr(r.descarte, 2),
-          formatNumberBr(r.opex, 2),
-          formatNumberBr(r.vpOpex ?? r.vpTotal, 2),
-          formatNumberBr(r.payback ?? 0, 2),
-        ];
-        drawRow(vals);
-      });
-      let xLine = margin;
-      doc.line(margin, top, margin, y);
-      colWidths.forEach((w) => {
-        xLine += w;
-        doc.line(xLine, top, xLine, y);
-      });
-      return y - savedY;
-    })();
-    y = savedY; // reset to top for aligned layout
-
-    // gráfico à direita
-    if (paybackChart) {
-      const img = chartToImage(paybackChart);
-      if (img) {
-        const cw = paybackChart.canvas?.width || 800;
-        const ch = paybackChart.canvas?.height || 500;
-        const ratio = ch / cw;
-        const chartHeight = half * ratio;
-        addPageIfNeeded(Math.max(chartHeight, tableHeight) + 10);
-        doc.addImage(img, "PNG", margin + half + 12, y, half, chartHeight);
+    const renderCashflowTable = (title, rows, totals) => {
+      y = drawSubTitle(doc, pageWidth, y, title, colors.primary) - 4;
+      const headers = ["Ano", "CO", "Manutenção", "Energia", "CD", "COA", "VP"];
+      const formatted = (rows || []).map((r) => [
+        r.ano.toString(),
+        formatCurrencyBr(r.capex),
+        formatCurrencyBr(r.manutencao),
+        formatCurrencyBr(r.energia),
+        formatCurrencyBr(r.descarte),
+        formatCurrencyBr(r.opex),
+        formatCurrencyBr(r.vpOpex ?? r.vpTotal),
+      ]);
+      if (totals) {
+        formatted.push([
+          "Total",
+          formatCurrencyBr(totals.capex),
+          formatCurrencyBr(totals.manutencao),
+          formatCurrencyBr(totals.energia),
+          formatCurrencyBr(totals.descarte),
+          formatCurrencyBr(totals.opex),
+          formatCurrencyBr(totals.vpOpex ?? totals.vpTotal),
+        ]);
       }
+      const widths = calcColWidths(doc, headers, formatted, {
+        maxWidth: contentWidth,
+        minWidths: [50, 80, 100, 90, 70, 90, 80],
+        padding: 6,
+        fontSize: 11,
+      });
+      const tWidth = widths.reduce((a, b) => a + b, 0);
+      y = drawTable(doc, {
+        x: margin + (contentWidth - tWidth) / 2,
+        y,
+        columns: headers,
+        rows: formatted,
+        colWidths: widths,
+        rowHeight: 24,
+        colors,
+      });
+    };
+
+    const eqLabel = (eq) => `${eq.marca} – ${formatNumberBr(eq.potencia_btu, 0)} BTU/h`;
+    renderCashflowTable(eqLabel(eq1.eq), dataset.cashflow.rows1, dataset.cashflow.totals1);
+    y += 8;
+    renderCashflowTable(eqLabel(eq2.eq), dataset.cashflow.rows2, dataset.cashflow.totals2);
+  }
+
+  // Página 4: Diferença e Payback
+  if (dataset.cashflow) {
+    drawHeader("Fluxo de Caixa da Diferença e Payback", true);
+    const title = `${eq1.eq.marca} e ${eq2.eq.marca} – ${formatNumberBr(eq1.eq.potencia_btu, 0)} BTU/h`;
+    y = drawSubTitle(doc, pageWidth, y, title, colors.primary) - 4;
+
+    const headers = ["Ano", "CO", "Manutenção", "Energia", "CD", "COA", "VP", "Payback"];
+    const rowsDiff = (dataset.cashflow.rowsDiff || []).map((r) => [
+      r.ano.toString(),
+      formatCurrencyBr(r.capex),
+      formatCurrencyBr(r.manutencao),
+      formatCurrencyBr(r.energia),
+      formatCurrencyBr(r.descarte),
+      formatCurrencyBr(r.opex),
+      formatCurrencyBr(r.vpOpex ?? r.vpTotal),
+      formatCurrencyBr(r.payback ?? 0),
+    ]);
+    if (dataset.cashflow.totalsDiff) {
+      const t = dataset.cashflow.totalsDiff;
+      rowsDiff.push([
+        "Total",
+        formatCurrencyBr(t.capex),
+        formatCurrencyBr(t.manutencao),
+        formatCurrencyBr(t.energia),
+        formatCurrencyBr(t.descarte),
+        formatCurrencyBr(t.opex),
+        formatCurrencyBr(t.vpOpex ?? t.vpTotal),
+        formatCurrencyBr(t.payback ?? 0),
+      ]);
     }
-    y = tableHeightStart + Math.max(tableHeight, 0) + 8;
+    const widths = calcColWidths(doc, headers, rowsDiff, {
+      maxWidth: contentWidth,
+      minWidths: [45, 70, 90, 90, 70, 90, 80, 80],
+      padding: 6,
+      fontSize: 11,
+    });
+    const tableWidth = widths.reduce((a, b) => a + b, 0);
+    y = drawTable(doc, {
+      x: margin + (contentWidth - tableWidth) / 2,
+      y,
+      columns: headers,
+      rows: rowsDiff,
+      colWidths: widths,
+      rowHeight: 24,
+      colors,
+    });
+
+    y += 6;
+    y = drawSubTitle(doc, pageWidth, y, "Curva de Payback", colors.primary);
+    y = drawChart(doc, chartToImage(paybackChart), {
+      x: margin + (contentWidth - chartWidth) / 2,
+      y,
+      width: chartWidth,
+      height: chartWidth * 0.55,
+    });
+  }
+
+  // Rodapés (data + número da página)
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    drawFooter(doc, i, totalPages, margin, colors.primary, dateText);
   }
 
   doc.save("Relatório Custo-Benefício - Ar-Condicionado.pdf");
