@@ -1,6 +1,7 @@
 ﻿/* Arquivo Responsável pelos estilos que definem o visual da página */
 /* cores, tipografia, layout, grids, botões, tabelas e responsividade*/
 
+/* Resumo: layout geral, componentes, tabelas, charts e responsividade do portal. */
 :root {
   --bg: #f3f7ff;
   --card: #ffffff;
@@ -207,6 +208,7 @@ header::after {
 .cols-4 { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
 .manual-cols-4 { grid-template-columns: 0.9fr 0.9fr 0.9fr 0.9fr; }
 .manual-cols-2 { grid-template-columns: repeat(2, minmax(200px, 1fr)); }
+.manual-cols-3 { grid-template-columns: repeat(3, minmax(180px, 1fr)); }
 .cols-1 { grid-template-columns: 1fr; }
 .gap { gap: 10px; }
 .mode-manual .grid { gap: 14px; }

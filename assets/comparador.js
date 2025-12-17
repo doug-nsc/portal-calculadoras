@@ -1,5 +1,6 @@
 ﻿// Arquivo principal do comparador de equipamentos, integrando UI, filtros, cálculos e gráficos.
 
+// Resumo: orquestra UI do comparador e ciclo de vida, cuida de filtros, estado, gráficos e exportações.
 import { computeEnergyTotals } from "./energy.js";
 import { computeLifecycleCurves, tecnologiaNormalizada, BETA } from "./lifecycle.js";
 import { createComparadorCharts, createLifecycleCharts, destroyChartGroup, BLUE_PALETTE, withAlpha } from "./charts.js";
@@ -8,10 +9,10 @@ import { downloadPdfExport } from "./export-pdf.js";
 
 // Estado principal do comparador (seleção, filtros e perfil de uso)
 const state = {
-  filters: { tipo: "all", tecnologia: "all", funcao: "Quente e Frio", potencia: "all", tensao: "all", classe: "all" },
+  filters: { tipo: "all", tecnologia: "all", funcao: "all", potencia: "all", tensao: "all", classe: "all" },
   equipments: [
-    { key: 1, equipmentId: "", custoAq: 0, custoInst: 0, anosVida: 10, manut: 300, descarte: 0, mode: "select", customName: "", customConsumo: 0, customTec: "", customBtu: 0, customIdrs: 0 },
-    { key: 2, equipmentId: "", custoAq: 0, custoInst: 0, anosVida: 10, manut: 300, descarte: 0, mode: "select", customName: "", customConsumo: 0, customTec: "", customBtu: 0, customIdrs: 0 },
+    { key: 1, equipmentId: "", custoAq: "", custoInst: "", anosVida: "", manut: "", descarte: "", mode: "select", customName: "", customConsumo: "", customTec: "", customBtu: "", customIdrs: "", customClasse: "" },
+    { key: 2, equipmentId: "", custoAq: "", custoInst: "", anosVida: "", manut: "", descarte: "", mode: "select", customName: "", customConsumo: "", customTec: "", customBtu: "", customIdrs: "", customClasse: "" },
   ],
   equipment1: null,
   equipment2: null,
@@ -26,8 +27,8 @@ const state = {
 
 // Estado do módulo de ciclo de vida (filtragem + seleção)
 const lcState = {
-  filters: { tipo: "all", tecnologia: "all", funcao: "Quente e Frio", potencia: "all", tensao: "all", classe: "all" },
-  equipments: [{ key: 1, equipmentId: "", anosVida: 10 }],
+  filters: { tipo: "all", tecnologia: "all", funcao: "all", potencia: "all", tensao: "all", classe: "all" },
+  equipments: [{ key: 1, equipmentId: "", anosVida: "" }],
   filtered: [],
 };
 
@@ -281,7 +282,7 @@ function renderEquipmentCards() {
           </select>
         </div>
         <div class="mode-manual" ${entry.mode === "manual" ? "" : 'style="display:none;"'}>
-          <div class="grid manual-cols-4 gap">
+            <div class="grid manual-cols-4 gap">
             <div>
               <label>Equipamento (Manual)</label>
               <input type="text" data-role="custom-nome" data-key="${entry.key}" value="${entry.customName ?? ""}" placeholder="Ex.: CGF Brisa 3000" />
@@ -293,6 +294,7 @@ function renderEquipmentCards() {
             <div>
               <label>Tecnologia</label>
               <select data-role="custom-tec" data-key="${entry.key}">
+                <option value="" ${!entry.customTec ? "selected" : ""}>Selecione</option>
                 <option value="Inverter" ${entry.customTec === "Inverter" ? "selected" : ""}>Inverter</option>
                 <option value="Convencional" ${entry.customTec === "Convencional" ? "selected" : ""}>Convencional</option>
               </select>
@@ -320,7 +322,19 @@ function renderEquipmentCards() {
               <input type="number" data-role="custom-consumo" data-key="${entry.key}" min="0" step="0.01" value="${entry.customConsumo ?? 0}" />
             </div>
           </div>
-          <div class="grid manual-cols-2 gap">
+          <div class="grid manual-cols-3 gap">
+            <div>
+              <label>Classe</label>
+              <select data-role="custom-classe" data-key="${entry.key}">
+                <option value="">Selecione</option>
+                <option value="A" ${entry.customClasse === "A" ? "selected" : ""}>A</option>
+                <option value="B" ${entry.customClasse === "B" ? "selected" : ""}>B</option>
+                <option value="C" ${entry.customClasse === "C" ? "selected" : ""}>C</option>
+                <option value="D" ${entry.customClasse === "D" ? "selected" : ""}>D</option>
+                <option value="E" ${entry.customClasse === "E" ? "selected" : ""}>E</option>
+                <option value="F" ${entry.customClasse === "F" ? "selected" : ""}>F</option>
+              </select>
+            </div>
             <div>
               <label>Vida Útil (Anos)</label>
               <input type="number" data-role="cf-anos" data-key="${entry.key}" min="1" max="25" step="1" value="${entry.anosVida ?? 10}" />
@@ -471,6 +485,8 @@ function parseCustomEquipment(entry) {
   const potencia = parseNumber(entry.customBtu, 0);
   const tecnologia = entry.customTec || "Inverter";
   const idrs = parseNumber(entry.customIdrs, 0);
+  const classeRaw = (entry.customClasse || "").toString().trim().toUpperCase();
+  const classe = ["A", "B", "C", "D", "E", "F"].includes(classeRaw) ? classeRaw : "";
   if (!nome || consumo <= 0) return null;
 
   return {
@@ -485,7 +501,7 @@ function parseCustomEquipment(entry) {
     modelo_concat: nome,
     consumo_kwh_ano: consumo,
     idrs,
-    classe: "",
+    classe,
     p_29_parcial: null,
     p_35_parcial: null,
     p_29_total: null,
@@ -521,9 +537,10 @@ addEquipmentBtn?.addEventListener("click", () => {
     second.equipmentId = "";
     second.customName = second.customName || "";
     second.customConsumo = second.customConsumo || 0;
-    second.customTec = second.customTec || "Inverter";
+    second.customTec = second.customTec || "";
     second.customBtu = second.customBtu || 0;
     second.customIdrs = second.customIdrs || 0;
+    second.customClasse = second.customClasse || "";
   } else {
     second.mode = "select";
     second.equipmentId = second.previousEquipmentId || "";
@@ -553,6 +570,10 @@ addEquipmentBtn?.addEventListener("click", () => {
     }
     if (role === "custom-tec") {
       entry.customTec = target.value;
+      updateCharts();
+    }
+    if (role === "custom-classe") {
+      entry.customClasse = target.value;
       updateCharts();
     }
   });
@@ -618,14 +639,8 @@ addEquipmentBtn?.addEventListener("click", () => {
 function initLifecycleSelectors() {
   if (!lcFilterFields.tipo) return;
   lcPopulateFilterOptions();
-  lcState.filters.potencia = "9000";
-  lcState.filters.funcao = "Quente e Frio";
   if (lcFilterFields.potencia) lcFilterFields.potencia.value = lcState.filters.potencia;
   if (lcFilterFields.funcao) lcFilterFields.funcao.value = lcState.filters.funcao;
-
-  const preset1 = findEquipmentPreset("Fujitsu", "Inverter", 9000);
-  lcState.equipments[0].equipmentId = preset1?.id?.toString() || "";
-  lcState.equipments[0].anosVida = 10;
 
   lcApplyFilters();
   attachLifecycleEvents();
@@ -766,8 +781,8 @@ function updateCharts() {
           <div class="muted">Classe ${item.eq.classe} | IDRS ${formatNumberBr(item.eq.idrs, 2)}</div>
           <div><strong>COA-Energia Anual (VP):</strong> ${formatCurrencyBr(item.custoEnergiaPV / lifeYears)}</div>
           <div><strong>COA-Energia em ${lifeYears} Anos (VP):</strong> ${formatCurrencyBr(item.custoEnergiaPV)}</div>
-          <div><strong>COA Anual (VP):</strong> ${formatCurrencyBr(item.opexPV / lifeYears)}</div>
-          <div><strong>COA em ${lifeYears} Anos (VP):</strong> ${formatCurrencyBr(item.opexPV)}</div>
+          <div><strong>COA Anual (VP):</strong> ${formatCurrencyBr(item.coaPV / lifeYears)}</div>
+          <div><strong>COA em ${lifeYears} Anos (VP):</strong> ${formatCurrencyBr(item.coaPV)}</div>
         </div>
       `
       )
@@ -810,8 +825,8 @@ function buildCashflowRows(item, params) {
       energia: 0,
       manutencao: 0,
       descarte: 0,
-      opex: 0,
-      vpOpex: 0,
+      coa: 0,
+      vpCoa: 0,
       total: capex,
       vpTotal: capex,
     },
@@ -821,11 +836,11 @@ function buildCashflowRows(item, params) {
     const energiaAno = energiaAnual;
     const manutAno = manut;
     const descarteAno = ano === years ? descarte : 0;
-    const opex = energiaAno + manutAno + descarteAno;
-    const vpOpex = opex / (1 + taxa) ** ano;
+    const coa = energiaAno + manutAno + descarteAno;
+    const vpCoa = coa / (1 + taxa) ** ano;
     const vpCapex = capexAno / (1 + taxa) ** Math.max(ano - 1, 0);
-    const total = capexAno + opex;
-    const vpTotal = vpCapex + vpOpex;
+    const total = capexAno + coa;
+    const vpTotal = vpCapex + vpCoa;
 
     rows.push({
       ano,
@@ -833,8 +848,8 @@ function buildCashflowRows(item, params) {
       energia: energiaAno,
       manutencao: manutAno,
       descarte: descarteAno,
-      opex,
-      vpOpex,
+      coa,
+      vpCoa,
       total,
       vpTotal,
     });
@@ -851,8 +866,8 @@ function renderCashflowTable(targetEl, rows, includePayback = false, totals) {
     manutencao: sumField("manutencao"),
     energia: sumField("energia"),
     descarte: sumField("descarte"),
-    opex: sumField("opex"),
-    vpOpex: sumField("vpOpex"),
+    coa: sumField("coa"),
+    vpCoa: sumField("vpCoa"),
     vpTotal: sumField("vpTotal"),
   };
 
@@ -865,8 +880,8 @@ function renderCashflowTable(targetEl, rows, includePayback = false, totals) {
         <td>${formatNumberBr(r.manutencao, 2)}</td>
         <td>${formatNumberBr(r.energia, 2)}</td>
         <td>${formatNumberBr(r.descarte, 2)}</td>
-        <td>${formatNumberBr(r.opex, 2)}</td>
-        <td>${formatNumberBr(r.vpOpex, 2)}</td>
+        <td>${formatNumberBr(r.coa, 2)}</td>
+        <td>${formatNumberBr(r.vpCoa, 2)}</td>
         ${includePayback ? `<td>${r.payback !== undefined ? formatNumberBr(r.payback, 2) : ""}</td>` : ""}
       </tr>`
     )
@@ -878,8 +893,8 @@ function renderCashflowTable(targetEl, rows, includePayback = false, totals) {
       <td>${formatNumberBr(totalsRow.manutencao, 2)}</td>
       <td>${formatNumberBr(totalsRow.energia, 2)}</td>
       <td>${formatNumberBr(totalsRow.descarte, 2)}</td>
-      <td>${formatNumberBr(totalsRow.opex, 2)}</td>
-      <td>${formatNumberBr(totalsRow.vpOpex, 2)}</td>
+      <td>${formatNumberBr(totalsRow.coa, 2)}</td>
+      <td>${formatNumberBr(totalsRow.vpCoa, 2)}</td>
       ${includePayback ? `<td>${""}</td>` : ""}
     </tr>`;
 }
@@ -915,18 +930,18 @@ function updateCashflow(computed) {
     const energiaDiff = r2.energia - r1.energia;
     const manutDiff = r2.manutencao - r1.manutencao;
     const descDiff = r2.descarte - r1.descarte;
-    const opexDiff = r2.opex - r1.opex;
-    const vpOpexDiff = r2.vpOpex - r1.vpOpex;
+    const coaDiff = r2.coa - r1.coa;
+    const vpCoaDiff = r2.vpCoa - r1.vpCoa;
     const vpCapexDiff = capexDiff / (1 + taxaReal) ** Math.max(r2.ano - 1, 0);
-    const vpTotalDiff = vpCapexDiff + vpOpexDiff;
+    const vpTotalDiff = vpCapexDiff + vpCoaDiff;
     return {
       ano: r2.ano,
       capex: capexDiff,
       manutencao: manutDiff,
       energia: energiaDiff,
       descarte: descDiff,
-      opex: opexDiff,
-      vpOpex: vpOpexDiff,
+      coa: coaDiff,
+      vpCoa: vpCoaDiff,
       vpTotal: vpTotalDiff,
       payback: 0,
     };
@@ -948,8 +963,8 @@ function updateCashflow(computed) {
     manutencao: sumField(rows1, "manutencao"),
     energia: sumField(rows1, "energia"),
     descarte: sumField(rows1, "descarte"),
-    opex: sumField(rows1, "opex"),
-    vpOpex: sumField(rows1, "vpOpex"),
+    coa: sumField(rows1, "coa"),
+    vpCoa: sumField(rows1, "vpCoa"),
     vpTotal: sumField(rows1, "vpTotal"),
   };
 
@@ -959,8 +974,8 @@ function updateCashflow(computed) {
     manutencao: sumField(rows2, "manutencao"),
     energia: sumField(rows2, "energia"),
     descarte: sumField(rows2, "descarte"),
-    opex: sumField(rows2, "opex"),
-    vpOpex: sumField(rows2, "vpOpex"),
+    coa: sumField(rows2, "coa"),
+    vpCoa: sumField(rows2, "vpCoa"),
     vpTotal: sumField(rows2, "vpTotal"),
   };
 
@@ -970,8 +985,8 @@ function updateCashflow(computed) {
     manutencao: sumField(rowsDiff, "manutencao"),
     energia: sumField(rowsDiff, "energia"),
     descarte: sumField(rowsDiff, "descarte"),
-    opex: sumField(rowsDiff, "opex"),
-    vpOpex: sumField(rowsDiff, "vpOpex"),
+    coa: sumField(rowsDiff, "coa"),
+    vpCoa: sumField(rowsDiff, "vpCoa"),
     vpTotal: sumField(rowsDiff, "vpTotal"),
   };
 
@@ -1233,50 +1248,13 @@ const loadEquipmentData = async () => {
       classe: item.classe || item.Classe || "",
     }));
 
-    // Pré-popula filtros e equipamentos para agilizar testes
-    state.filters.potencia = "9000";
-    state.filters.funcao = "Quente e Frio";
+      populateFilterOptions();
+      if (filterFields.potencia) filterFields.potencia.value = state.filters.potencia;
+      if (filterFields.funcao) filterFields.funcao.value = state.filters.funcao;
 
-    populateFilterOptions();
-    if (filterFields.potencia) filterFields.potencia.value = state.filters.potencia;
-    if (filterFields.funcao) filterFields.funcao.value = state.filters.funcao;
-
-    const preset1 = findEquipmentPreset("Fujitsu", "Inverter", 9000);
-    const preset2 = findEquipmentPreset("TCL", "Convencional", 9000);
-    state.equipments = [
-      {
-        key: 1,
-        equipmentId: preset1?.id?.toString() || "",
-        custoAq: 3000,
-        custoInst: 500,
-        anosVida: 10,
-        manut: 300,
-        descarte: 150,
-        mode: "select",
-        customName: "",
-        customConsumo: 0,
-        customTec: "",
-        customIdrs: 0,
-      },
-      {
-        key: 2,
-        equipmentId: preset2?.id?.toString() || "",
-        custoAq: 2000,
-        custoInst: 350,
-        anosVida: 10,
-        manut: 300,
-        descarte: 150,
-        mode: "select",
-        customName: "",
-        customConsumo: 0,
-        customTec: "",
-        customIdrs: 0,
-      },
-    ];
-
-    initLifecycleSelectors();
-    applyFilters();
-    attachEvents();
+      initLifecycleSelectors();
+      applyFilters();
+      attachEvents();
 
     loaderEl.classList.add("hidden");
     uiEl.classList.remove("hidden");

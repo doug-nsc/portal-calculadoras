@@ -1,5 +1,6 @@
 // Arquivo responsável por cálculos relacionados ao ciclo de vida dos equipamentos.
 
+// Resumo: calcula penalizacoes de uso/manutencao/ambiente e gera curvas Weibull de ciclo de vida.
 export const BETA = 2.0;
 export const ETA0 = 10;
 

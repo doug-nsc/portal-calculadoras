@@ -1,5 +1,6 @@
 // Arquivo responsável por cálculos relacionados ao consumo de energia e custos associados.
 
+// Resumo: estima consumo anual ajustando por horas/dias de uso e calcula custos presentes.
 const BASE_ANNUAL_HOURS = 2080; // consumo_kwh_ano refere-se a 2080h/ano (365 dias * 5,698h/dia)
 
 // Consumo anual direto a partir do valor medio informado pelo INMETRO.
@@ -34,11 +35,11 @@ export function computeEnergyTotals(entries, usage, lifeYears = 1) {
     const custoEnergiaTotal = custoEnergiaAnual * lifeYears;
     const custoEnergiaPV = presentValueAnnuity(custoEnergiaAnual, taxaReal, lifeYears);
 
-    const manutPV = presentValueAnnuity(manutAnual, taxaReal, lifeYears);
-    const descartePV = descarte / (1 + taxaReal) ** lifeYears;
-    const opexAnual = custoEnergiaAnual + manutAnual;
-    const opexTotal = custoEnergiaTotal + manutAnual * lifeYears + descarte;
-    const opexPV = custoEnergiaPV + manutPV + descartePV;
+  const manutPV = presentValueAnnuity(manutAnual, taxaReal, lifeYears);
+  const descartePV = descarte / (1 + taxaReal) ** lifeYears;
+  const coaAnual = custoEnergiaAnual + manutAnual;
+  const coaTotal = custoEnergiaTotal + manutAnual * lifeYears + descarte;
+  const coaPV = custoEnergiaPV + manutPV + descartePV;
 
     const capex = (entry.custoAq || 0) + (entry.custoInst || 0);
     const custoTotalPrimeiroAno = capex + custoEnergiaAnual;
@@ -54,9 +55,9 @@ export function computeEnergyTotals(entries, usage, lifeYears = 1) {
       custoEnergiaPV,
       manutAnual,
       descarte,
-      opexAnual,
-      opexTotal,
-      opexPV,
+      coaAnual,
+      coaTotal,
+      coaPV,
       custoTotalPrimeiroAno,
       totalVida,
       totalVidaPV,

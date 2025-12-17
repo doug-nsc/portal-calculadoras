@@ -1,5 +1,6 @@
 ﻿// Arquivo responsável por configurações, plugins e construtores de gráficos usando Chart.js
 
+// Resumo: paleta, plugins auxiliares e criação dos gráficos do comparador e do ciclo de vida.
 export const BLUE_PALETTE = ["#0b5c8a", "#0d6fb2", "#1380c9", "#1992dd", "#3aa9f2"];
 
 export const withAlpha = (hex, alpha = "b3") => `${hex}${alpha}`;

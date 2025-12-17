@@ -1,6 +1,10 @@
 ﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+
+  <!-- ---------------------------------------------------------- -->
+  <!--                 Metadados e assets globais                 -->
+  <!-- ---------------------------------------------------------- -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Portal de Calculadoras de Custo-Benefício e Vida Útil</title>
@@ -14,6 +18,10 @@
   <script src="assets/main.js" type="module" defer></script>
 </head>
 <body>
+
+  <!-- ---------------------------------------------------------- -->
+  <!--      Faixa superior com logotipo e mensagem principal      -->
+  <!-- ---------------------------------------------------------- -->
   <header>
     <div class="hero">
       <img src="assets/logo_horizontal_branco.png" alt="Logo TCE-PR" class="logo" />
@@ -22,6 +30,9 @@
     </div>
   </header>
 
+  <!-- ------------------------------------------------------------------------ -->
+  <!--    Navegação principal entre Início, Custo-Benefício e Ciclo de Vida     -->
+  <!-- ------------------------------------------------------------------------ -->
   <main class="container">
     <div class="tabs">
       <button class="tab-button active" data-tab-target="inicio">Início</button>
@@ -47,6 +58,9 @@
       </div>
     </div>
 
+    <!-- --------------------------------------------------------------------------------- -->
+    <!--     Tela inicial com panorama, cards de módulos ativos/futuros e instruções       -->
+    <!-- --------------------------------------------------------------------------------- -->
     <section id="tab-inicio" class="tab-content active">
       <div class="card highlight">
         <h3>Visão Geral</h3>
@@ -55,7 +69,7 @@
           <div class="info-icon" aria-hidden="true">ℹ</div>
           <div>
             <strong>Objetivo do Sistema</strong>
-            <div>Este simulador utiliza modelos físico-matemáticos para estimar custos operacionais, vida útil e confiabilidade de equipamentos. Auxilia gestores públicos na tomada de decisões baseadas em dados técnicos concretos durante processos de compra.</div>
+            <div>Esta calculadora utiliza modelos físico-matemáticos, aliados a dados públicos do INMETRO, para estimar custos operacionais, vida útil e confiabilidade de equipamentos. Auxilia gestores públicos na tomada de decisões durante processos de compra.</div>
           </div>
         </div>
       </div>
@@ -81,12 +95,15 @@
         <ol class="lead instructions">
           <li>Selecione um módulo disponível.</li>
           <li>Configure filtros e parâmetros de uso.</li>
-          <li>Visualize gráficos de consumo, custo e confiabilidade.</li>
+          <li>Visualize gráficos de consumo, custo ao longo da vida útil e confiabilidade.</li>
           <li>Compare resultados e exporte os dados se necessário.</li>
         </ol>
       </div>
     </section>
 
+    <!-- --------------------------------------------------------------------------------- -->
+    <!--        Módulo Custo-Benefício: filtros, seleção de equipamentos e resultados      -->
+    <!-- --------------------------------------------------------------------------------- -->
     <section id="tab-comparador" class="tab-content">
       <div class="card">
         <h3>Objetivo e Escopo da Solução</h3>
@@ -128,6 +145,9 @@
         </div>
       </div>
 
+      <!-- --------------------------------------------------------------------------------- -->
+      <!--      Cards principais: seleção, parametros de uso, gráficos e fluxo de caixa      -->
+      <!-- --------------------------------------------------------------------------------- -->
       <div class="card hidden" id="selection-card">
         <div class="flex-between">
           <div>
@@ -248,6 +268,9 @@
 
     </section>
 
+    <!-- -------------------------------------------------------------------- -->
+    <!--        Espacos reservados para futuras variantes do comparador       -->
+    <!-- -------------------------------------------------------------------- -->
     <section id="tab-comparador-pneus" class="tab-content">
       <div class="card">
         <div class="badge muted">Em breve</div>
@@ -284,6 +307,9 @@
       </div>
     </section>
 
+    <!-- ------------------------------------------------------------------------------ -->
+    <!--     Módulo Ciclo de Vida: filtros INMETRO, seleção, condições e resultados     -->
+    <!-- ------------------------------------------------------------------------------ -->
     <section id="tab-ciclo" class="tab-content">
       <div class="card">
         <h3>Análise de Ciclo de Vida</h3>
@@ -390,6 +416,10 @@
         </div>
       </div>
     </section>
+
+    <!-- ------------------------------------------------------------------- -->
+    <!--     Espaços reservados para futuras variantes do ciclo de vida      -->
+    <!-- ------------------------------------------------------------------- -->
     <section id="tab-ciclo-pneus" class="tab-content">
       <div class="card">
         <div class="badge muted">Em breve</div>
@@ -426,6 +456,10 @@
       </div>
     </section>
   </main>
+
+  <!-- ----------------------------------- -->
+  <!--     Rodapé com versão e autoria     -->
+  <!-- ----------------------------------- -->
   <footer class="footer">
     2025 (β 1.0) - Portal de Calculadoras - Desenvolvido na CGF
   </footer>

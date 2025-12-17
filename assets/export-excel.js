@@ -1,5 +1,6 @@
 // Arquivo responsável por exportar os dados do comparador e análise de ciclo de vida para Excel.
 
+// Resumo: monta workbook XLSX com resumo do comparador, fluxos de caixa e (se houver) resultados de ciclo de vida.
 import { tecnologiaNormalizada } from "./lifecycle.js";
 
 function buildWorkbook(ds, lc) {
@@ -11,16 +12,27 @@ function buildWorkbook(ds, lc) {
     Tecnologia: c.eq.tecnologia || tecnologiaNormalizada(c.eq),
     ConsumoTotal_kWh: c.consumoTotal,
     CustoEnergia_Total: c.custoEnergiaTotal,
-    OPEX_Total: c.opexTotal,
+    COA_Total: c.coaTotal,
     Total_Vida: c.totalVida,
     Total_Vida_PV: c.totalVidaPV,
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumo), "CB_Resumo");
 
+  const mapCashflowRow = (r, includePayback = false) => ({
+    Ano: r.ano,
+    CO: r.capex,
+    "COA-Manutencao": r.manutencao,
+    "COA-Energia": r.energia,
+    CD: r.descarte,
+    COA: r.coa,
+    VP: r.vpCoa ?? r.vpTotal,
+    ...(includePayback ? { Payback: r.payback ?? 0 } : {}),
+  });
+
   if (ds.cashflow) {
-    const wsCF1 = XLSX.utils.json_to_sheet(ds.cashflow.rows1 || []);
-    const wsCF2 = XLSX.utils.json_to_sheet(ds.cashflow.rows2 || []);
-    const wsCFD = XLSX.utils.json_to_sheet(ds.cashflow.rowsDiff || []);
+    const wsCF1 = XLSX.utils.json_to_sheet((ds.cashflow.rows1 || []).map((r) => mapCashflowRow(r, false)));
+    const wsCF2 = XLSX.utils.json_to_sheet((ds.cashflow.rows2 || []).map((r) => mapCashflowRow(r, false)));
+    const wsCFD = XLSX.utils.json_to_sheet((ds.cashflow.rowsDiff || []).map((r) => mapCashflowRow(r, true)));
     XLSX.utils.book_append_sheet(wb, wsCF1, "CB_Fluxo_Equip1");
     XLSX.utils.book_append_sheet(wb, wsCF2, "CB_Fluxo_Equip2");
     XLSX.utils.book_append_sheet(wb, wsCFD, "CB_Fluxo_Diferenca");

@@ -1,4 +1,5 @@
 // Gerencia abas e dropdowns do topo
+// Resumo: controla as abas principais e os gatilhos de navegacao entre seções.
 export function initTabs() {
   const tabTriggers = document.querySelectorAll("[data-tab-target]");
   const tabContents = document.querySelectorAll(".tab-content");

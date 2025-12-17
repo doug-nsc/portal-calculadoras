@@ -1,6 +1,7 @@
 // Arquivo responsável por renderizar os cards dos módulos de produtos na tela inicial.
 
 // Lista os módulos exibidos na tela inicial (ativos e futuros)
+// Resumo: define lista de modulos e desenha os cards de ativos/em breve na home.
 const productModules = [
   {
     id: "ar-condicionado",

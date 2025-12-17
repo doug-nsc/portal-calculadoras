@@ -1,5 +1,6 @@
 // Exporta relatórios em PDF com layout inspirado nos mockups fornecidos.
 
+// Resumo: gera o PDF do comparador com tabelas, graficos e fluxo de caixa, carregando logo e fontes.
 import { tecnologiaNormalizada } from "./lifecycle.js";
 
 const LOGO_SRC = "assets/logo_horizontal_azul.jpg";
@@ -207,7 +208,7 @@ function drawFooter(doc, pageNumber, margin, colorPrimary, dateText) {
   doc.setFont(activeFont, "normal");
   doc.setFontSize(11);
   doc.setTextColor(...colorPrimary);
-  doc.text(`Data de exportação: ${dateText}`, margin, y);
+  doc.text(`Data de Exportação: ${dateText}`, margin, y);
   doc.setFont(activeFont, "bold");
   doc.text(String(pageNumber), doc.internal.pageSize.getWidth() - margin, y, { align: "right" });
 }
@@ -467,8 +468,8 @@ export async function downloadPdfExport({ dataset, charts, paybackChart }) {
     [`Consumo em ${lifeYears} Anos`, `${formatNumberBr(eq1.consumoTotal, 2)} kWh`, `${formatNumberBr(eq2.consumoTotal, 2)} kWh`],
     ["COA-Energia Anual", formatCurrencyBr(eq1.custoEnergiaAnual), formatCurrencyBr(eq2.custoEnergiaAnual)],
     [`COA-Energia em ${lifeYears} Anos`, formatCurrencyBr(eq1.custoEnergiaTotal), formatCurrencyBr(eq2.custoEnergiaTotal)],
-    ["COA Anual", formatCurrencyBr(eq1.opexAnual), formatCurrencyBr(eq2.opexAnual)],
-    [`COA em ${lifeYears} Anos`, formatCurrencyBr(eq1.opexTotal), formatCurrencyBr(eq2.opexTotal)],
+    ["COA Anual", formatCurrencyBr(eq1.coaAnual), formatCurrencyBr(eq2.coaAnual)],
+    [`COA em ${lifeYears} Anos`, formatCurrencyBr(eq1.coaTotal), formatCurrencyBr(eq2.coaTotal)],
   ];
   const colWidths = calcColWidths(doc, tableCols, tableRows, {
     maxWidth: page1.contentWidth * 0.88,
@@ -505,8 +506,8 @@ export async function downloadPdfExport({ dataset, charts, paybackChart }) {
         formatCurrencyBr(r.manutencao),
         formatCurrencyBr(r.energia),
         formatCurrencyBr(r.descarte),
-        formatCurrencyBr(r.opex),
-        formatCurrencyBr(r.vpOpex ?? r.vpTotal),
+        formatCurrencyBr(r.coa),
+        formatCurrencyBr(r.vpCoa ?? r.vpTotal),
       ]);
       if (totals) {
         formatted.push([
@@ -515,8 +516,8 @@ export async function downloadPdfExport({ dataset, charts, paybackChart }) {
           formatCurrencyBr(totals.manutencao),
           formatCurrencyBr(totals.energia),
           formatCurrencyBr(totals.descarte),
-          formatCurrencyBr(totals.opex),
-          formatCurrencyBr(totals.vpOpex ?? totals.vpTotal),
+          formatCurrencyBr(totals.coa),
+          formatCurrencyBr(totals.vpCoa ?? totals.vpTotal),
         ]);
       }
       const widths = calcColWidths(doc, headers, formatted, {
@@ -551,8 +552,8 @@ export async function downloadPdfExport({ dataset, charts, paybackChart }) {
       formatCurrencyBr(r.manutencao),
       formatCurrencyBr(r.energia),
       formatCurrencyBr(r.descarte),
-      formatCurrencyBr(r.opex),
-      formatCurrencyBr(r.vpOpex ?? r.vpTotal),
+      formatCurrencyBr(r.coa),
+      formatCurrencyBr(r.vpCoa ?? r.vpTotal),
       formatCurrencyBr(r.payback ?? 0),
     ]);
     if (dataset.cashflow.totalsDiff) {
@@ -563,14 +564,14 @@ export async function downloadPdfExport({ dataset, charts, paybackChart }) {
         formatCurrencyBr(t.manutencao),
         formatCurrencyBr(t.energia),
         formatCurrencyBr(t.descarte),
-        formatCurrencyBr(t.opex),
-        formatCurrencyBr(t.vpOpex ?? t.vpTotal),
+        formatCurrencyBr(t.coa),
+        formatCurrencyBr(t.vpCoa ?? t.vpTotal),
         formatCurrencyBr(t.payback ?? 0),
       ]);
     }
     const widths = calcColWidths(doc, headers, rowsDiff, {
       maxWidth: page4.contentWidth * 0.80,
-      minWidths: [35, 66, 80, 80, 45, 80, 76, 76],
+      minWidths: [35, 66, 80, 80, 60, 80, 70, 76],
       padding: 5,
       fontSize: 9,
     });
